@@ -428,19 +428,38 @@ function buildPropertiesForDb(target_db, text, meta) {
   return props;
 }
 
-// ===== 自然文→DB名・本文抽出 =====
+// 自然文から { dbName, content } を抜く（"notion" 省略OK、順序入れ替えOK）
 function parseDbCommand(text) {
-  // 末尾の「◯◯のnotionに記録して/登録して/保存して」を検出
-  const m = text.match(/(.+?)\s*[のノ]\s*(?:notion|ノーション)\s*に\s*(?:記録|登録|保存)(?:して|してね|してください)?[。.!！]?$/i);
-  if (!m) return null;
-  const before = m[1].trim();
-  // “… アニメ一覧 のnotionに …” の “アニメ一覧” をDB名として推定
-  const nameMatch = before.match(/([^\s。．、,]+)$/);
-  const dbName = nameMatch ? nameMatch[1] : before;
+  const s = (text || '').replace(/\s+/g, ' ').trim();
 
-  const content = text.replace(m[0], '').trim();
-  return { dbName, content: (content || before).trim() };
-}
+  // A) 「…、DB名 に 保存/記録/登録/追加（して）」型 例: 週次振り返り…、アニメ一覧に保存して
+  let m = s.match(/^(.*?)[、,。]?\s*([^\s、。]+)\s*に\s*(?:notion|ノーション)?\s*(?:へ)?\s*(?:記録|保存|登録|追加)(?:して.*)?$/i);
+  if (m) {
+    const content = m[1].trim();
+    const dbName  = m[2].trim();
+    return { dbName, content: content || dbName };
+  }
+
+  // B) 「DB名 に 保存: 内容」型 例: アニメ一覧に保存: 週次振り返りのテンプレ見直し
+  m = s.match(/^([^\s、。]+)\s*に\s*(?:notion|ノーション)?\s*(?:へ)?\s*(?:記録|保存|登録|追加)[:：]?\s*(.+)$/i);
+  if (m) {
+    const dbName  = m[1].trim();
+    const content = m[2].trim();
+    return { dbName, content };
+  }
+
+  // C) 旧パターン：「… DB名 のnotionに 記録して」
+  m = s.match(/(.+?)\s*[のノ]\s*(?:notion|ノーション)\s*に\s*(?:記録|登録|保存)(?:して|してね|してください)?[。.!！]?$/i);
+  if (m) {
+    const before = m[1].trim();
+    const nameMatch = before.match(/([^\s。．、,]+)$/);
+    const dbName  = nameMatch ? nameMatch[1] : before;
+    const content = s.replace(m[0], '').trim();
+    return { dbName, content: (content || before).trim() };
+  }
+
+  return null;
+  }
 
 // ===== 自由文→DBのスキーマに合わせて自動プロパティ化 =====
 function buildAutoPropertiesForFreeText(content, meta) {
